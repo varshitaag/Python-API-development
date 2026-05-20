@@ -22,6 +22,8 @@ class UserOut(BaseModel):
     id: int
     email: EmailStr
     created_at: datetime
+    is_verified: bool
+    verification_token: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -35,7 +37,7 @@ class Post(PostBase):
     class Config:
         from_attributes = True
 
-class PostOut(PostBase):
+class PostOut(BaseModel):
     post: Post
     votes:int
 
@@ -58,3 +60,4 @@ class TokenData(BaseModel):
 class Vote(BaseModel):
     post_id: int
     dir: Annotated[int, Field(ge=0, le=1)]
+

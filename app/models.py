@@ -22,6 +22,8 @@ class User(Base):
     password=Column(String, nullable=False)
     created_at= Column(TIMESTAMP(timezone=True),
                        nullable=False, server_default=text('now()'))
+    is_verified = Column(Boolean, server_default='FALSE', nullable=False)
+    verification_token = Column(String, nullable=True)
     
 class Vote(Base):
     __tablename__="votes"

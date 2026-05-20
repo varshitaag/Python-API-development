@@ -9,7 +9,10 @@ from .. import oauth2
 from ..database import get_db
 
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/posts",
+    tags=["Posts"]
+)
 
 
 def _serialize_post(post: models.Post, votes: int):
@@ -26,6 +29,7 @@ def _serialize_post(post: models.Post, votes: int):
                 "id": owner.id,
                 "email": owner.email,
                 "created_at": owner.created_at,
+                "is_verified": owner.is_verified,
             },
         },
         "votes": votes,
@@ -38,7 +42,7 @@ def root():
 
 
 # Get all posts
-@router.get("/posts", response_model=List[schemas.PostOut])
+@router.get("", response_model=List[schemas.PostOut])
 def get_posts(db: Session = Depends(get_db), current_user: models.User = Depends(oauth2.get_current_user), limit: int = 10, skip: int = 0, search: Optional[str]=""):
     
     
@@ -48,7 +52,7 @@ def get_posts(db: Session = Depends(get_db), current_user: models.User = Depends
 
 
 # Create post
-@router.post("/posts", status_code=status.HTTP_201_CREATED, response_model=schemas.PostOut)
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=schemas.PostOut)
 def create_post(post: schemas.PostCreate, db: Session = Depends(get_db), current_user: models.User = Depends(oauth2.get_current_user)):
 
     
@@ -58,12 +62,12 @@ def create_post(post: schemas.PostCreate, db: Session = Depends(get_db), current
     db.commit()
     db.refresh(new_post)
 
-    return new_post
+    return _serialize_post(new_post, 0)
 
 
 
 # Get single post
-@router.get("/posts/{id}", response_model=schemas.PostOut)
+@router.get("/{id}", response_model=schemas.PostOut)
 def get_post(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(oauth2.get_current_user)):
 
     post=db.query(models.Post, func.count(models.Vote.post_id).label("votes")).join(models.Vote, models.Vote.post_id==models.Post.id,isouter=True).group_by(models.Post.id).filter(models.Post.id == id).first()
@@ -77,7 +81,7 @@ def get_post(id: int, db: Session = Depends(get_db), current_user: models.User =
 
 
 # Delete post
-@router.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(oauth2.get_current_user)):
     post_query = db.query(models.Post).filter(models.Post.id == id)
     post = post_query.first()
@@ -98,7 +102,7 @@ def delete_post(id: int, db: Session = Depends(get_db), current_user: models.Use
 
 
 # Update post
-@router.put("/posts/{id}")
+@router.put("/{id}", response_model=schemas.PostOut)
 def update_post(id: int, updated_post: schemas.PostCreate, db: Session = Depends(get_db), current_user: models.User = Depends(oauth2.get_current_user)):
     post_query = db.query(models.Post).filter(models.Post.id == id)
     post = post_query.first()
@@ -115,5 +119,8 @@ def update_post(id: int, updated_post: schemas.PostCreate, db: Session = Depends
     
     post_query.update(updated_post.dict(), synchronize_session=False)
     db.commit()
+    db.refresh(post)
 
-    return post_query.first()
+    votes = db.query(func.count(models.Vote.post_id)).filter(models.Vote.post_id == id).scalar()
+
+    return _serialize_post(post, votes or 0)
